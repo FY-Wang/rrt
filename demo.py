@@ -3,11 +3,46 @@ import pybullet as p
 import pybullet_data
 import numpy as np
 import time
+import math
 import argparse
 
 
 UR5_JOINT_INDICES = [0, 1, 2]
 
+
+from collections import defaultdict
+
+
+class Graph:
+ 
+    graph = defaultdict(set)
+    
+    def addEdge(graph, u, v):
+        
+        
+        #print graph.items()
+        graph[u].add(v) 
+        
+        
+class VertexGraph:
+    
+    graph_list = []
+    
+    def addVertex(self,node):
+        if node not in self.graph_list:
+            self.graph_list.append(node)
+
+'''
+class Graph:
+    
+    graph_dict = {}
+
+    def addEdge(self,node,neighbor):  
+        if node not in self.graph_dict:
+            self.graph_dict[node]=[neighbor]
+        else:
+            self.graph_dict[node].append(neighbor)
+'''
 
 def set_joint_positions(body, joints, values):
     assert len(joints) == len(values)
@@ -32,11 +67,77 @@ def get_args():
     args = parser.parse_args()
     return args
 
+def extend_rrt(Graph, q_rand):
+    dist = float('inf')
+    for q in Graph.graph_list:
+        curr_dist = math.sqrt( ((q_rand[0] - q[0]) ** 2) + ((q_rand[1] - q[1]) ** 2) + ((q_rand[2] - q[2]) ** 2) )
+        if curr_dist < dist:
+            dist = curr_dist
+            q_near = list(q)
+    
+    d_1 = q_rand[0] - q_near[0]
+    d_2 = q_rand[1] - q_near[1]
+    d_3 = q_rand[2] - q_near[2]
 
-def rrt():
-    ###############################################
-    # TODO your code to implement the rrt algorithm
-    ###############################################
+    t = 0.2
+    
+    q_new = []
+    q_new.append(q_near[0] - (d_1[0] * t))
+    q_new.append(q_near[1] - (d_2[0] * t))
+    q_new.append(q_near[2] - (d_3[0] * t))
+
+    
+    '''print 'q_new'
+    print q_new
+    print 'q_near'
+    print q_near'''
+    
+    
+    return q_new, q_near
+
+
+def rrt(max_iter, start_conf, end_conf):
+    # ([0, 1, 2]) are [-2pi. 2pi], [-2pi, 2pi] and [-pi. pi]
+    
+    g = Graph()
+    g2 = defaultdict(list)
+    
+    g_v = VertexGraph()
+    g_v.addVertex(start_conf)
+    
+    for i in range(10):
+        rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
+        rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
+        rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
+        
+        rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
+
+        q_new, q_near = extend_rrt(g_v, rand_conf)
+
+        if collision_fn(q_new):
+            #print 'invalid conf'
+            
+            pass
+        else:
+            #print 'valid conf'
+            
+            g_v.addVertex(q_new)
+            '''print 'q_near'
+            print q_near
+            print
+            print 'q_new'
+            print q_new
+            print'''
+            #g.addEdge(q_near, q_new)
+            g2[tuple(q_near)].append(q_new)
+            
+            #print g2
+        
+        
+            p.addUserDebugLine(q_near,q_new,[0, 1, 0], 1)
+        
+            
+    
     pass
 
 
@@ -85,6 +186,11 @@ if __name__ == "__main__":
     goal_marker = draw_sphere_marker(position=goal_position, radius=0.02, color=[1, 0, 0, 1])
     set_joint_positions(ur5, UR5_JOINT_INDICES, start_conf)
 
+    
+    # additional variables
+    max_iter = 500
+    
+    
     # place holder to save the solution path
     path_conf = None
 
@@ -103,7 +209,7 @@ if __name__ == "__main__":
             path_conf = birrt()
     else:
         # using rrt
-        path_conf = rrt()
+        path_conf = rrt(max_iter, start_conf, goal_conf)
 
     if path_conf is None:
         # pause here
@@ -116,8 +222,6 @@ if __name__ == "__main__":
         ###############################################
         
         
-        p.addUserDebugLine([0.0,0.1,0.2],[0.2,0.4,0.6],[1, 0, 0], 1)
-
         # execute the path
         while True:
             for q in path_conf:
