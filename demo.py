@@ -15,14 +15,10 @@ from collections import defaultdict
 
 class Graph:
  
-    graph = defaultdict(set)
+    graph = defaultdict(list)
     
-    def addEdge(graph, u, v):
-        
-        
-        #print graph.items()
-        graph[u].add(v) 
-        
+    def addEdge(self, node, next_node):
+        self.graph[tuple(node)].append(next_node)
         
 class VertexGraph:
     
@@ -32,17 +28,6 @@ class VertexGraph:
         if node not in self.graph_list:
             self.graph_list.append(node)
 
-'''
-class Graph:
-    
-    graph_dict = {}
-
-    def addEdge(self,node,neighbor):  
-        if node not in self.graph_dict:
-            self.graph_dict[node]=[neighbor]
-        else:
-            self.graph_dict[node].append(neighbor)
-'''
 
 def set_joint_positions(body, joints, values):
     assert len(joints) == len(values)
@@ -67,77 +52,99 @@ def get_args():
     args = parser.parse_args()
     return args
 
-def extend_rrt(Graph, q_rand):
+
+def find_path(graph, start, end, path =[]): 
+    
+    path = path + [start] 
+    
+    if start == end: 
+        return path 
+    
+    for node in graph.graph[start]: 
+        
+        if node not in path: 
+            newpath = find_path(graph, node, end, path) 
+            
+            if newpath:  
+                return newpath 
+            
+            return None
+
+
+def create_step(p1,p2):
+    
+    delta = 0.1
+    
+    if np.linalg.norm(p2-p1) < delta:
+        
+        return p2
+
+    else:
+        direction_vector = (p2 - p1) / np.linalg.norm(p2-p1)
+        
+        return p1 + delta * direction_vector
+
+
+def extend_rrt(Graph, q_rand, g_v, g):
     dist = float('inf')
+    
+    
     for q in Graph.graph_list:
         curr_dist = math.sqrt( ((q_rand[0] - q[0]) ** 2) + ((q_rand[1] - q[1]) ** 2) + ((q_rand[2] - q[2]) ** 2) )
         if curr_dist < dist:
             dist = curr_dist
             q_near = list(q)
     
-    d_1 = q_rand[0] - q_near[0]
-    d_2 = q_rand[1] - q_near[1]
-    d_3 = q_rand[2] - q_near[2]
+    q_new = create_step(np.array(q_near), np.array(q_rand))
+    q_new = q_new.tolist()
+    
+    q_near_state = p.getLinkState(ur5, 3)[4]
+    if collision_fn(q_new):
+        #print 'invalid conf'   
+        pass
+    else:
+        q_new_state = p.getLinkState(ur5, 3)[4]
+        print q_near_state
+        print q_new_state
+        p.addUserDebugLine(q_near_state,q_new_state,[0, 1, 0], 1)
+        #p.addUserDebugLine(q_near, q_new, [0, 1, 0], 1 )
+        #time.sleep(2)
+        
+        g_v.addVertex(q_new)
+        g.addEdge(q_near, q_new)
 
-    t = 0.2
+        return q_new
     
-    q_new = []
-    q_new.append(q_near[0] - (d_1[0] * t))
-    q_new.append(q_near[1] - (d_2[0] * t))
-    q_new.append(q_near[2] - (d_3[0] * t))
-
-    
-    '''print 'q_new'
-    print q_new
-    print 'q_near'
-    print q_near'''
-    
-    
-    return q_new, q_near
+    return None
+        
 
 
 def rrt(max_iter, start_conf, end_conf):
     # ([0, 1, 2]) are [-2pi. 2pi], [-2pi, 2pi] and [-pi. pi]
     
-    g = Graph()
-    g2 = defaultdict(list)
     
+    g = Graph()
     g_v = VertexGraph()
     g_v.addVertex(start_conf)
     
-    for i in range(10):
+    for i in range(max_iter):
         rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
         rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
         rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
         
         rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
+        q_rand = [rand_conf[0][0], rand_conf[1][0], rand_conf[2][0]]
+        
+        q_new = extend_rrt(g_v, q_rand, g_v, g)    
 
-        q_new, q_near = extend_rrt(g_v, rand_conf)
+        if q_new is not None:
+            dist_to_goal = np.linalg.norm(np.array(end_conf) - np.array(q_new)) 
+            if dist_to_goal < 0.5:
+                #path_conf = find_path(g, start_conf, q_new)
+                
+                #print path_conf
+                return 'goal found'
 
-        if collision_fn(q_new):
-            #print 'invalid conf'
-            
-            pass
-        else:
-            #print 'valid conf'
-            
-            g_v.addVertex(q_new)
-            '''print 'q_near'
-            print q_near
-            print
-            print 'q_new'
-            print q_new
-            print'''
-            #g.addEdge(q_near, q_new)
-            g2[tuple(q_near)].append(q_new)
-            
-            #print g2
-        
-        
-            p.addUserDebugLine(q_near,q_new,[0, 1, 0], 1)
-        
-            
-    
     pass
 
 
@@ -210,20 +217,25 @@ if __name__ == "__main__":
     else:
         # using rrt
         path_conf = rrt(max_iter, start_conf, goal_conf)
-
+        raw_input("no collision-free path is found within the time budget, finish?")
     if path_conf is None:
         # pause here
 
         raw_input("no collision-free path is found within the time budget, finish?")
         
-    else:
+    #else:
         ###############################################
         # TODO your code to highlight the solution path
         ###############################################
         
         
+        #p.getJointState(ur5, <joint index>)
+        
+        
+        
+        
         # execute the path
-        while True:
-            for q in path_conf:
-                set_joint_positions(ur5, UR5_JOINT_INDICES, q)
-                time.sleep(0.5)
+        #while True:
+        #    for q in path_conf:
+        #        set_joint_positions(ur5, UR5_JOINT_INDICES, q)
+        #        time.sleep(0.5)
