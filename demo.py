@@ -19,20 +19,20 @@ from collections import defaultdict
 def find_path(graph, start, end, path =[]): 
     path = path + [start] 
     #print path
-    if start == end:
-        #print 'here'
+    if tuple(start) == tuple(end):
+        print 'here'
         return path 
 
     for node in graph[tuple(start)]:
         node = tuple(node)
-        #print node
+        print node
         if node not in path:
             newpath = find_path(graph, node, end, path) 
 
             if newpath:  
                 return newpath 
 
-            return path
+            #return None
 
 
 
@@ -138,14 +138,27 @@ def rrt(max_iter, start_conf, end_conf):
             #g.addEdge(q_near, q_new)
             
             
-            dist_to_goal = abs(np.linalg.norm(np.array(end_conf) - np.array(q_new)))
-            if dist_to_goal < 0.5:
+            dist_to_goal = abs(end_conf[0] - q_new[0]) + abs(end_conf[1] - q_new[1]) + abs(end_conf[2] - q_new[2]) 
+            
+            if dist_to_goal < 0.4:
                 #print graph
                 #for n in graph:
                 #    print n
                 path_conf = find_path(graph, start_conf, q_new)
                 
                 print path_conf
+                print
+                print
+                print q_new
+                print end_conf
+                print dist_to_goal
+                
+                set_joint_positions(ur5, UR5_JOINT_INDICES, q_new)
+                time.sleep(5)
+                
+                set_joint_positions(ur5, UR5_JOINT_INDICES, end_conf)
+                time.sleep(5)
+                
                 
                 return path_conf
         
@@ -199,7 +212,7 @@ if __name__ == "__main__":
 
     
     # additional variables
-    max_iter = 1000
+    max_iter = 2000
     
     
     # place holder to save the solution path
@@ -231,9 +244,12 @@ if __name__ == "__main__":
         ###############################################
         # TODO your code to highlight the solution path
         ###############################################
-        
-        
-        #p.getJointState(ur5, <joint index>)
+
+        for q in path_conf:
+            q_start = p.getLinkState(ur5, 3)[4]
+            set_joint_positions(ur5, UR5_JOINT_INDICES, q)
+            q_end = p.getLinkState(ur5, 3)[4]            
+            p.addUserDebugLine(q_start,q_end,[1, 0, 0], 1)
         
         
         
