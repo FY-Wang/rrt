@@ -1,4 +1,5 @@
 from __future__ import division
+from collections import defaultdict
 import pybullet as p
 import pybullet_data
 import numpy as np
@@ -10,22 +11,15 @@ import argparse
 UR5_JOINT_INDICES = [0, 1, 2]
 
 
-from collections import defaultdict
-
-
-
- 
-
 def find_path(graph, start, end, path =[]): 
+    
     path = path + [start] 
-    #print path
+
     if tuple(start) == tuple(end):
-        print 'here'
         return path 
 
     for node in graph[tuple(start)]:
         node = tuple(node)
-        print node
         if node not in path:
             newpath = find_path(graph, node, end, path) 
 
@@ -33,9 +27,6 @@ def find_path(graph, start, end, path =[]):
                 return newpath 
 
             #return None
-
-
-
 
 def set_joint_positions(body, joints, values):
     assert len(joints) == len(values)
@@ -61,27 +52,9 @@ def get_args():
     return args
 
 
-'''def find_path(graph, start, end, path =[]): 
-    
-    path = path + [start] 
-    
-    if start == end: 
-        return path 
-    
-    for node in graph.graph[start]: 
-        
-        if node not in path: 
-            newpath = find_path(graph, node, end, path) 
-            
-            if newpath:  
-                return newpath 
-            
-            return None
-'''
-
 def create_step(p1,p2):
     
-    delta = 0.1
+    delta = 0.075
     
     if np.linalg.norm(p2-p1) < delta:
         return p2
@@ -96,17 +69,25 @@ def extend_rrt(q_near, q_rand):
     q_new = create_step(np.array(q_near), np.array(q_rand))
     q_new = q_new.tolist()
     
-    #q_near_state = p.getLinkState(ur5, 3)[4]
-    if collision_fn(q_new):
-        #print 'invalid conf'   
+    
+    if collision_fn(q_new):   
         pass
     else:
-
+        set_joint_positions(ur5, UR5_JOINT_INDICES, q_near)
+        q_near_state = p.getLinkState(ur5, 3)[0]
+        
+        set_joint_positions(ur5, UR5_JOINT_INDICES, q_new)
+        q_next_state = p.getLinkState(ur5, 3)[0]
+        p.addUserDebugLine(q_near_state,q_next_state,[0, 1, 0], 1)
+        #if q_near_state and q_next_state:
+        #p.addUserDebugLine([q_near[0] * 0.1, q_near[1] * 0.1, q_near[2] * 0.1 ],[q_new[0] * 0.1, q_new[1] * 0.1, q_new[2] * 0.1 ],[0, 1, 0], 1)
+        
         return q_near, q_new
     
     return None, None
         
-
+def dist_fn(p1, p2):
+    return math.sqrt( ((p2[0] - p1[0]) ** 2) + ((p2[1] - p1[1]) ** 2) + ((p2[2] - p1[2]) ** 2) )
 
 def rrt(max_iter, start_conf, end_conf):
     
@@ -114,61 +95,100 @@ def rrt(max_iter, start_conf, end_conf):
     graph_list = []
     graph_list.append(start_conf)
     
+    bias = 0.05 * max_iter
+    counter = 0
+    
     for i in range(max_iter):
-        rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
-        rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
-        rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
-        
-        rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
-        q_rand = [rand_conf[0][0], rand_conf[1][0], rand_conf[2][0]]
+        if counter == bias:
+            q_rand = end_conf
+            counter = 0
+        else:
+            rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
+            rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
+            rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
+            counter += 1    
+            
+            rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
+            q_rand = [rand_conf[0][0], rand_conf[1][0], rand_conf[2][0]]
         
         dist = float('inf')
         for q in graph_list:
-            curr_dist = math.sqrt( ((q_rand[0] - q[0]) ** 2) + ((q_rand[1] - q[1]) ** 2) + ((q_rand[2] - q[2]) ** 2) )
+            curr_dist = dist_fn(q, q_rand) #math.sqrt( ((q_rand[0] - q[0]) ** 2) + ((q_rand[1] - q[1]) ** 2) + ((q_rand[2] - q[2]) ** 2) )
             if curr_dist < dist:
                 dist = curr_dist
                 q_near = list(q)
-        
         
         q_near, q_new = extend_rrt(q_near, q_rand)    
 
         if q_new is not None:
             graph_list.append(q_new)
             graph[tuple(q_near)].append(q_new)
-            #g.addEdge(q_near, q_new)
             
+            dist_to_goal = dist_fn(q_new, end_conf) #math.sqrt( ((end_conf[0] - q_new[0]) ** 2) + ((end_conf[1] - q_new[1]) ** 2) + ((end_conf[2] - q_new[2]) ** 2) ) 
             
-            dist_to_goal = abs(end_conf[0] - q_new[0]) + abs(end_conf[1] - q_new[1]) + abs(end_conf[2] - q_new[2]) 
-            
-            if dist_to_goal < 0.4:
-                #print graph
-                #for n in graph:
-                #    print n
-                path_conf = find_path(graph, start_conf, q_new)
+            if dist_to_goal <= 0.075:
                 
-                print path_conf
-                print
-                print
-                print q_new
-                print end_conf
-                print dist_to_goal
+                graph_list.append(end_conf)
+                graph[tuple(q_new)].append(end_conf)
                 
-                set_joint_positions(ur5, UR5_JOINT_INDICES, q_new)
-                time.sleep(5)
+                path_conf = find_path(graph, start_conf, end_conf)
                 
-                set_joint_positions(ur5, UR5_JOINT_INDICES, end_conf)
-                time.sleep(5)
-                
-                
-                return path_conf
+                return path_conf, graph
         
     pass
 
 
-def birrt():
-    #################################################
-    # TODO your code to implement the birrt algorithm
-    #################################################
+def birrt(max_iter, start_conf, end_conf):
+    
+    graph_1 = defaultdict(list)
+    graph_list_1 = []
+    graph_list_1.append(start_conf)
+    
+    graph_2 = defaultdict(list)
+    graph_list_2 = []
+    graph_list_2.append(end_conf)
+    
+    bias = 0.05 * max_iter
+    counter = 0
+    
+    for i in range(max_iter):
+        if counter == bias:
+            q_rand = end_conf
+            counter = 0
+        else:
+            rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
+            rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
+            rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
+            counter += 1    
+            
+            rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
+            q_rand = [rand_conf[0][0], rand_conf[1][0], rand_conf[2][0]]
+        
+        dist = float('inf')
+        for q in graph_list:
+            curr_dist = dist_fn(q, q_rand) #math.sqrt( ((q_rand[0] - q[0]) ** 2) + ((q_rand[1] - q[1]) ** 2) + ((q_rand[2] - q[2]) ** 2) )
+            if curr_dist < dist:
+                dist = curr_dist
+                q_near = list(q)
+        
+        q_near, q_new = extend_rrt(q_near, q_rand)    
+
+        if q_new is not None:
+            graph_list.append(q_new)
+            graph[tuple(q_near)].append(q_new)
+            
+            dist_to_goal = dist_fn(q_new, end_conf) #math.sqrt( ((end_conf[0] - q_new[0]) ** 2) + ((end_conf[1] - q_new[1]) ** 2) + ((end_conf[2] - q_new[2]) ** 2) ) 
+            
+            if dist_to_goal <= 0.075:
+                
+                graph_list.append(end_conf)
+                graph[tuple(q_new)].append(end_conf)
+                
+                path_conf = find_path(graph, start_conf, end_conf)
+                
+                return path_conf, graph
+    
+    
     pass
 
 
@@ -212,7 +232,7 @@ if __name__ == "__main__":
 
     
     # additional variables
-    max_iter = 2000
+    max_iter = 5000
     
     
     # place holder to save the solution path
@@ -230,31 +250,31 @@ if __name__ == "__main__":
             path_conf = birrt_smoothing()
         else:
             # using birrt without smoothing
-            path_conf = birrt()
+            path_conf = birrt(max_iter, start_conf, end_conf)
     else:
         # using rrt
-        path_conf = rrt(max_iter, start_conf, goal_conf)
+        path_conf, graph = rrt(max_iter, start_conf, goal_conf)
         
-    if path_conf is None:
+    if path_conf is None or graph is None:
         # pause here
-
         raw_input("no collision-free path is found within the time budget, finish?")
         
-    else:
-        ###############################################
-        # TODO your code to highlight the solution path
-        ###############################################
-
-        for q in path_conf:
-            q_start = p.getLinkState(ur5, 3)[4]
+    else:        
+        count = 0
+        for q in path_conf:            
+            q_start = p.getLinkState(ur5, 3)[0]
+            d = dist_fn(q_start, goal_position)
             set_joint_positions(ur5, UR5_JOINT_INDICES, q)
-            q_end = p.getLinkState(ur5, 3)[4]            
-            p.addUserDebugLine(q_start,q_end,[1, 0, 0], 1)
-        
-        
-        
-        
+            q_end = p.getLinkState(ur5, 3)[0]  
+            if d > 0.07:
+                p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
+            if d < 0.07 and count > 2:
+                p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
+            count += 1
+
+
         # execute the path
+        
         while True:
             for q in path_conf:
                 set_joint_positions(ur5, UR5_JOINT_INDICES, q)
