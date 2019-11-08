@@ -13,20 +13,20 @@ UR5_JOINT_INDICES = [0, 1, 2]
 
 def find_path(graph, start, end, path =[]): 
     
-    path = path + [start] 
-
+    path = path + [start]
+    
     if tuple(start) == tuple(end):
         return path 
 
-    for node in graph[tuple(start)]:
+    for node in graph[tuple(start)]:    
         node = tuple(node)
         if node not in path:
-            newpath = find_path(graph, node, end, path) 
+            
+            nextpath = find_path(graph, node, end, path) 
 
-            if newpath:  
-                return newpath 
+            if nextpath:  
+                return nextpath 
 
-            #return None
 
 def set_joint_positions(body, joints, values):
     assert len(joints) == len(values)
@@ -69,7 +69,6 @@ def extend_rrt(q_near, q_rand):
     q_new = create_step(np.array(q_near), np.array(q_rand))
     q_new = q_new.tolist()
     
-    
     if collision_fn(q_new):   
         pass
     else:
@@ -79,8 +78,6 @@ def extend_rrt(q_near, q_rand):
         set_joint_positions(ur5, UR5_JOINT_INDICES, q_new)
         q_next_state = p.getLinkState(ur5, 3)[0]
         p.addUserDebugLine(q_near_state,q_next_state,[0, 1, 0], 1)
-        #if q_near_state and q_next_state:
-        #p.addUserDebugLine([q_near[0] * 0.1, q_near[1] * 0.1, q_near[2] * 0.1 ],[q_new[0] * 0.1, q_new[1] * 0.1, q_new[2] * 0.1 ],[0, 1, 0], 1)
         
         return q_near, q_new
     
@@ -113,7 +110,7 @@ def rrt(max_iter, start_conf, end_conf):
         
         dist = float('inf')
         for q in graph_list:
-            curr_dist = dist_fn(q, q_rand) #math.sqrt( ((q_rand[0] - q[0]) ** 2) + ((q_rand[1] - q[1]) ** 2) + ((q_rand[2] - q[2]) ** 2) )
+            curr_dist = dist_fn(q, q_rand) 
             if curr_dist < dist:
                 dist = curr_dist
                 q_near = list(q)
@@ -124,7 +121,7 @@ def rrt(max_iter, start_conf, end_conf):
             graph_list.append(q_new)
             graph[tuple(q_near)].append(q_new)
             
-            dist_to_goal = dist_fn(q_new, end_conf) #math.sqrt( ((end_conf[0] - q_new[0]) ** 2) + ((end_conf[1] - q_new[1]) ** 2) + ((end_conf[2] - q_new[2]) ** 2) ) 
+            dist_to_goal = dist_fn(q_new, end_conf) 
             
             if dist_to_goal <= 0.075:
                 
@@ -133,7 +130,7 @@ def rrt(max_iter, start_conf, end_conf):
                 
                 path_conf = find_path(graph, start_conf, end_conf)
                 
-                return path_conf, graph
+                return path_conf
         
     pass
 
@@ -148,46 +145,73 @@ def birrt(max_iter, start_conf, end_conf):
     graph_list_2 = []
     graph_list_2.append(end_conf)
     
-    bias = 0.05 * max_iter
-    counter = 0
-    
+    count = 1
     for i in range(max_iter):
-        if counter == bias:
-            q_rand = end_conf
-            counter = 0
-        else:
-            rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
-            rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
-            rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
-            counter += 1    
-            
-            rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
-            q_rand = [rand_conf[0][0], rand_conf[1][0], rand_conf[2][0]]
         
+        if count % 2 == 0:
+            T_1 = graph_1
+            T_1_list = graph_list_1
+            T_2 = graph_2
+            T_2_list = graph_list_2
+        else:
+            T_1 = graph_2
+            T_1_list = graph_list_2
+            T_2 = graph_1
+            T_2_list = graph_list_1
+        
+        rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
+        rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
+        rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
+   
+        
+        rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
+        q_rand = [rand_conf[0][0], rand_conf[1][0], rand_conf[2][0]]
+    
         dist = float('inf')
-        for q in graph_list:
-            curr_dist = dist_fn(q, q_rand) #math.sqrt( ((q_rand[0] - q[0]) ** 2) + ((q_rand[1] - q[1]) ** 2) + ((q_rand[2] - q[2]) ** 2) )
+        for q in T_1_list:
+            curr_dist = dist_fn(q, q_rand) 
             if curr_dist < dist:
                 dist = curr_dist
-                q_near = list(q)
+                q_near_1 = list(q)
         
-        q_near, q_new = extend_rrt(q_near, q_rand)    
+        q_near_1, q_new_1 = extend_rrt(q_near_1, q_rand)    
 
-        if q_new is not None:
-            graph_list.append(q_new)
-            graph[tuple(q_near)].append(q_new)
+        if q_new_1 is not None:
+            T_1_list.append(q_new_1)
+            T_1[tuple(q_near_1)].append(q_new_1)
+
+            dist = float('inf')
+            for q in T_2_list:
+                curr_dist = dist_fn(q, q_new_1) 
+                if curr_dist < dist:
+                    dist = curr_dist
+                    q_near_2 = list(q)
+        
+            q_near_2, q_new_2 = extend_rrt(q_near_2, q_new_1) 
             
-            dist_to_goal = dist_fn(q_new, end_conf) #math.sqrt( ((end_conf[0] - q_new[0]) ** 2) + ((end_conf[1] - q_new[1]) ** 2) + ((end_conf[2] - q_new[2]) ** 2) ) 
+            if q_new_2 is not None:
+                T_2_list.append(q_new_2)
+                T_2[tuple(q_near_2)].append(q_new_2)
+                
+                dist_to_connect = dist_fn(q_new_1, q_new_2)    
+                
+                if dist_to_connect < 0.1:
+                    
+                    graph_1[tuple(q_new_1)].append(q_new_2)
+                    
+                    graph_2[tuple(q_new_2)].append(q_new_1)
+                    #p.addUserDebugLine(q_near_2,q_new_2,[0, 1, 0], 4.0)
+                    path_conf_1 = find_path(graph_1, start_conf, q_new_2)
+                    path_conf_2 = find_path(graph_2, end_conf, q_new_1)
+
+                    for q in reversed(path_conf_2):
+                        path_conf_1.append(q)
+                    path_conf = path_conf_1    
+                
+                    return path_conf
+        count += 1    
             
-            if dist_to_goal <= 0.075:
-                
-                graph_list.append(end_conf)
-                graph[tuple(q_new)].append(end_conf)
-                
-                path_conf = find_path(graph, start_conf, end_conf)
-                
-                return path_conf, graph
-    
+            
     
     pass
 
@@ -250,27 +274,43 @@ if __name__ == "__main__":
             path_conf = birrt_smoothing()
         else:
             # using birrt without smoothing
-            path_conf = birrt(max_iter, start_conf, end_conf)
+            path_conf = birrt(max_iter, start_conf, goal_conf)
     else:
         # using rrt
-        path_conf, graph = rrt(max_iter, start_conf, goal_conf)
+        path_conf= rrt(max_iter, start_conf, goal_conf)
         
-    if path_conf is None or graph is None:
+    if path_conf is None:
         # pause here
         raw_input("no collision-free path is found within the time budget, finish?")
         
     else:        
-        count = 0
-        for q in path_conf:            
-            q_start = p.getLinkState(ur5, 3)[0]
-            d = dist_fn(q_start, goal_position)
-            set_joint_positions(ur5, UR5_JOINT_INDICES, q)
-            q_end = p.getLinkState(ur5, 3)[0]  
-            if d > 0.07:
-                p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
-            if d < 0.07 and count > 2:
-                p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
-            count += 1
+        
+        
+        
+        if args.birrt:
+            count = 0
+            for q in path_conf:            
+                q_start = p.getLinkState(ur5, 3)[0]
+                #d = dist_fn(q_start, path_conf[len(path_conf)-1])
+                set_joint_positions(ur5, UR5_JOINT_INDICES, q)
+                q_end = p.getLinkState(ur5, 3)[0]  
+                if count > 1:
+                    p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
+                count += 1
+        else:
+            count = 0
+            for q in path_conf:            
+                q_start = p.getLinkState(ur5, 3)[0]
+                d = dist_fn(q_start, goal_position)
+                set_joint_positions(ur5, UR5_JOINT_INDICES, q)
+                q_end = p.getLinkState(ur5, 3)[0]  
+                if d > 0.07:
+                    p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
+                if d < 0.07 and count > 2:
+                    p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
+                count += 1
+            
+            
 
 
         # execute the path
