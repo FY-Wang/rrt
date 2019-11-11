@@ -65,32 +65,16 @@ def create_step(p1,p2):
 
 
 def create_smooth_step(p1,p2):
+    
     delta = 0.05
+    
     if np.linalg.norm(p2-p1) < delta:
         return p2
+    
     else:
         direction_vector = (p2 - p1) / np.linalg.norm(p2-p1)
         return p1 + delta * direction_vector
-
-def extend_rrt_smooth(q_near, q_rand):
-
-    q_new = create_step(np.array(q_near), np.array(q_rand))
-    q_new = q_new.tolist()
     
-    if collision_fn(q_new):   
-        pass
-    else:
-        #set_joint_positions(ur5, UR5_JOINT_INDICES, q_near)
-        #q_near_state = p.getLinkState(ur5, 3)[0]
-        
-        #set_joint_positions(ur5, UR5_JOINT_INDICES, q_new)
-        #q_next_state = p.getLinkState(ur5, 3)[0]
-        #p.addUserDebugLine(q_near_state,q_next_state,[0, 1, 0], 1)
-        
-        return q_near, q_new
-    
-    return None, None
-
 
 def extend_rrt(q_near, q_rand):
 
@@ -245,10 +229,9 @@ def birrt(max_iter, start_conf, end_conf):
                     dist = curr_dist
                     q_near_2 = list(q)
             
-            #print count, color
-            #time.sleep(2)
             q_near_2, q_new_2 = extend_rrt_b(q_near_2, q_new_1, count) 
-            color_count += 1
+
+
             if q_new_2 is not None:
                 T_2_list.append(q_new_2)
                 T_2[tuple(q_near_2)].append(q_new_2)
@@ -257,10 +240,9 @@ def birrt(max_iter, start_conf, end_conf):
                 
                 if dist_to_connect < 0.1:
                     
-                    graph_1[tuple(q_new_1)].append(q_new_2)
-                    
+                    graph_1[tuple(q_new_1)].append(q_new_2)                    
                     graph_2[tuple(q_new_2)].append(q_new_1)
-                    #p.addUserDebugLine(q_near_2,q_new_2,[1, 0, 0], 4.0)
+
                     path_conf_1 = find_path(graph_1, start_conf, q_new_2)
                     path_conf_2 = find_path(graph_2, end_conf, q_new_1)
 
@@ -269,11 +251,9 @@ def birrt(max_iter, start_conf, end_conf):
                     path_conf = list(OrderedDict.fromkeys(path_conf_1))  
                 
                     return path_conf
-            
-            
-            
-    
+                
     pass
+
 
 def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
     path_conf = birrt(max_iter, start_conf, end_conf)
@@ -282,13 +262,9 @@ def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
         list_len = len(path_conf) - 2
         rand_indx_1 = random.randint(1, list_len)
         rand_indx_2 = random.randint(1, list_len)
-        #print path_conf
+
         rand_point_1 = path_conf[rand_indx_1]
         rand_point_2 = path_conf[rand_indx_2]
-        
-        print list_len
-        print rand_point_1
-        print rand_point_2
         
         if rand_indx_2 > rand_indx_1:
             d = dist_fn(rand_point_1, rand_point_2)
@@ -298,9 +274,8 @@ def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
             
             while d > 0.02:
                 q_new = create_smooth_step(np.array(curr_point), np.array(rand_point_2))
-        
                 q_new = q_new.tolist()
-                #time.sleep(0.5)
+                
                 if collision_fn(q_new):
                     conflict = True
                     break
@@ -312,8 +287,6 @@ def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
                 d = dist_fn(q_new, rand_point_2)
         
             if not conflict:
-                #path_conf.remove(rand_point_1)
-                #path_conf.remove(rand_point_2)
                 path_conf[rand_indx_1:rand_indx_2] = []
                 path_conf[rand_indx_1:rand_indx_1] = new_path
         
@@ -326,10 +299,9 @@ def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
             curr_point = rand_point_2
             
             while d > 0.02:
-                q_new = create_smooth_step(np.array(curr_point), np.array(rand_point_1))
-        
+                q_new = create_smooth_step(np.array(curr_point), np.array(rand_point_1))        
                 q_new = q_new.tolist()
-                #time.sleep(0.5)
+
                 if collision_fn(q_new):
                     conflict = True
                     break
@@ -341,199 +313,13 @@ def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
                 d = dist_fn(q_new, rand_point_1)
     
             if not conflict:
-                #path_conf.remove(rand_point_2)
-                #path_conf.remove(rand_point_1)
                 path_conf[rand_indx_2:rand_indx_1] = []
                 path_conf[rand_indx_2:rand_indx_2] = new_path
                         
                 
-    #path_conf = list(OrderedDict.fromkeys(path_conf))
+    path_conf = list(OrderedDict.fromkeys(path_conf))
     return path_conf      
 
-def birrt_smoothing2(smooth_iter, max_iter, start_conf, end_conf):
-    path_conf = birrt(max_iter, start_conf, end_conf)
-
-    for i in range(100):
-        list_len = len(path_conf) - 2
-        rand_indx_1 = random.randint(1, list_len)
-        rand_indx_2 = random.randint(1, list_len)
-        
-        rand_point_1 = path_conf[rand_indx_1]
-        rand_point_2 = path_conf[rand_indx_2]
-        
-        '''print list_len
-        print rand_point_1
-        print rand_point_2
-        
-        print rand_indx_1
-        print rand_indx_2
-        print'the end', path_conf[list_len-1]'''
-        
-        
-        if rand_indx_2 > rand_indx_1:
-            
-            d = dist_fn(rand_point_1, rand_point_2)
-            #counter = rand_indx_1
-            conflict = True
-            new_path = []
-            curr_point = rand_point_1
-    
-            while d > 0.02:
-                
-                #result, point = linear_interpol(rand_point_2, rand_point_1, d)
-                
-                q_new = create_smooth_step(np.array(curr_point), np.array(rand_point_2))
-                q_new = q_new.tolist()
-                time.sleep(0.5)
-                if collision_fn(q_new):
-                    conflict = True
-                    break
-                else:
-                    conflict = False
-
-                    #new_path.append(tuple(q_new))
-                    
-                    #path_conf.insert(counter, q_new)
-                    #counter += 1
-                    
-                curr_point = q_new
-                d = dist_fn(q_new, rand_point_2)
-                #print d
-                #print counter
-                
-            
-            if not conflict:
-                #print rand_point_2
-                #removearray(rand_point_1, path_conf)
-                path_conf.remove(rand_point_1)
-                path_conf.remove(rand_point_2)
-                path_conf[rand_indx_2:rand_indx_2] = new_path
-                path_conf = list(OrderedDict.fromkeys(path_conf))
-                #path_conf.insert(rand_indx_2, new_path)
-            
-            
-            '''
-            if result:
-                print point
-            
-                #path_conf.remove(rand_point_1)
-                path_conf[rand_indx_1] = point
-            
-                start = rand_point_2
-                conflict = True
-                for x in range(100):
-                    q_new = create_step(np.array(start), np.array(rand_point_1))
-                    q_new = q_new
-                    #set_joint_positions(ur5, UR5_JOINT_INDICES, q_new)
-                    #time.sleep(1)
-                    if collision_fn(q_new):   
-                        conflict = True
-                        break
-                    else:
-                        conflict = False
-                    start = q_new
-                
-                if not conflict:
-                    path_conf.remove(rand_point_2)
-                    #path_conf.append(point)
-            '''
-        
-        elif rand_indx_1 > rand_indx_2:
-            #d = dist_fn(rand_point_2, rand_point_1)
-
-            #result, point = linear_interpol(rand_point_1, rand_point_2, d)
-            
-            #if result:
-            #    print point
-                #path_conf.remove(rand_point_2)
-            #    path_conf[rand_indx_2] = point
-                
-            #d = dist_fn(rand_point_2, rand_point_1)
-            #counter = rand_indx_2
-            
-            d = dist_fn(rand_point_2, rand_point_1)
-            #counter = rand_indx_1
-            conflict = True
-            new_path = []
-            curr_point = rand_point_2
-
-            
-            
-            while d > 0.02:
-                              
-
-                #result, point = linear_interpol(rand_point_2, rand_point_1, d)
-                
-                q_new = create_smooth_step(np.array(curr_point), np.array(rand_point_1))
-                #time.sleep(0.5)
-                q_new = q_new.tolist()
-                if collision_fn(q_new):
-                    conflict = True
-                    break
-                else:
-                    
-                    conflict = False
-                    new_path.append(tuple(q_new))
-                    
-                curr_point = q_new
-                d = dist_fn(q_new, rand_point_1)  
-                
-                #print d
-                
-            if not conflict:
-                #print(rand_point_1)
-                #removearray(rand_point_1, path_conf)
-                path_conf.remove(rand_point_2)
-                path_conf.remove(rand_point_1)
-                path_conf[rand_indx_1:rand_indx_1] = new_path
-                path_conf = list(OrderedDict.fromkeys(path_conf))
-                #path_conf.insert(rand_indx_1, new_path)
-                
-                
-            '''    start = rand_point_1
-                conflict = True
-                for x in range(100):
-                    q_new = create_step(np.array(start), np.array(rand_point_2))
-                    q_new = q_new
-                    #set_joint_positions(ur5, UR5_JOINT_INDICES, q_new)
-                    
-                    #time.sleep(1)
-                    if collision_fn(q_new):
-                        conflict = True
-                        break
-                    else:
-                        conflict = False
-                    
-                    start = q_new
-                        
-                if not conflict:
-                    path_conf.remove(rand_point_1)
-                    #path_conf.append(point)
-            '''
-    path_conf = list(OrderedDict.fromkeys(path_conf))
-    return path_conf
-
-
-def linear_interpol(V1, V2, d):
-    
-    V = []
-    V.append((V2[0] - V1[0]))
-    V.append((V2[1] - V1[1]))
-    V.append((V2[2] - V1[2]))
-    
-    check = np.linalg.norm(V)
-    if check == 0.0:
-        return False, None
-    else:
-        point = np.array(V1) + ((d / np.linalg.norm(V)) * V)
-        
-        result = point.tolist()
-        print 'result', result
-        
-        if collision_fn(result):   
-            return False, None
-        else:
-            return True, result
     
 if __name__ == "__main__":
     args = get_args()
