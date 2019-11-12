@@ -10,24 +10,6 @@ import random
 
 UR5_JOINT_INDICES = [0, 1, 2]
 
-
-def find_path(graph, start, end, path =[]): 
-    
-    path = path + [start]
-    
-    if tuple(start) == tuple(end):
-        return path 
-
-    for node in graph[tuple(start)]:    
-        node = tuple(node)
-        if node not in path:
-            
-            nextpath = find_path(graph, node, end, path) 
-
-            if nextpath:  
-                return nextpath 
-
-
 def set_joint_positions(body, joints, values):
     assert len(joints) == len(values)
     for joint, value in zip(joints, values):
@@ -50,6 +32,22 @@ def get_args():
     parser.add_argument('--smoothing', action='store_true', default=False)
     args = parser.parse_args()
     return args
+
+def find_path(graph, start, end, path =[]):
+    
+    path = path + [start]
+    
+    if tuple(start) == tuple(end):
+        return path 
+
+    for node in graph[tuple(start)]:    
+        node = tuple(node)
+        if node not in path:
+            
+            nextpath = find_path(graph, node, end, path) 
+
+            if nextpath:  
+                return nextpath
 
 
 def create_step(p1,p2):
@@ -167,7 +165,6 @@ def rrt(max_iter, start_conf, end_conf):
                 path_conf = find_path(graph, start_conf, end_conf)
                 
                 return path_conf
-        
     pass
 
 
@@ -200,8 +197,7 @@ def birrt(max_iter, start_conf, end_conf):
         
         rand_joint_3 = np.random.uniform(-np.pi, np.pi, 1)
         rand_joint_2 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
-        rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)    
-   
+        rand_joint_1 = np.random.uniform(2*-np.pi, 2*np.pi, 1)
         
         rand_conf = [rand_joint_1, rand_joint_2, rand_joint_3]
         q_rand = [rand_conf[0][0], rand_conf[1][0], rand_conf[2][0]]
@@ -212,7 +208,6 @@ def birrt(max_iter, start_conf, end_conf):
             if curr_dist < dist:
                 dist = curr_dist
                 q_near_1 = list(q)
-        
         
         q_near_1, q_new_1 = extend_rrt_b(q_near_1, q_rand, count)
         
@@ -230,7 +225,6 @@ def birrt(max_iter, start_conf, end_conf):
                     q_near_2 = list(q)
             
             q_near_2, q_new_2 = extend_rrt_b(q_near_2, q_new_1, count) 
-
 
             if q_new_2 is not None:
                 T_2_list.append(q_new_2)
@@ -290,7 +284,6 @@ def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
                 path_conf[rand_indx_1:rand_indx_2] = []
                 path_conf[rand_indx_1:rand_indx_1] = new_path
         
-        
         elif rand_indx_1 > rand_indx_2:
             
             d = dist_fn(rand_point_2, rand_point_1)
@@ -314,8 +307,7 @@ def birrt_smoothing(smooth_iter, max_iter, start_conf, end_conf):
     
             if not conflict:
                 path_conf[rand_indx_2:rand_indx_1] = []
-                path_conf[rand_indx_2:rand_indx_2] = new_path
-                        
+                path_conf[rand_indx_2:rand_indx_2] = new_path       
                 
     path_conf = list(OrderedDict.fromkeys(path_conf))
     return path_conf      
@@ -382,14 +374,11 @@ if __name__ == "__main__":
         raw_input("no collision-free path is found within the time budget, finish?")
         
     else:        
-        
-        
-        
+
         if args.birrt:
             count = 0
             for q in path_conf:            
                 q_start = p.getLinkState(ur5, 3)[0]
-                #d = dist_fn(q_start, path_conf[len(path_conf)-1])
                 set_joint_positions(ur5, UR5_JOINT_INDICES, q)
                 q_end = p.getLinkState(ur5, 3)[0]  
                 if count >= 1:
@@ -407,12 +396,8 @@ if __name__ == "__main__":
                 if d < 0.07 and count > 2:
                     p.addUserDebugLine(q_start,q_end,[1, 0, 0], 4.0)
                 count += 1
-            
-            
 
-
-        # execute the path
-        
+        # execute the path 
         while True:
             for q in path_conf:
                 set_joint_positions(ur5, UR5_JOINT_INDICES, q)
