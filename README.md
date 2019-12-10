@@ -1,6 +1,6 @@
 # Lab 4 - Rapidly-exploring Random Tree (RRT)
 
-### by: trc2124 & rn2488
+### by: trc2124
 
 ---
 
