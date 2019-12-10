@@ -1,7 +1,5 @@
 # Lab 4 - Rapidly-exploring Random Tree (RRT)
 
-### by: trc2124
-
 ---
 
 This repo is tested with python 2.7 and pybullet 2.5.6.
